@@ -86,6 +86,25 @@ func GatherRepositories(sess *core.Session) {
   wg.Wait()
 }
 
+func GatherAllRepositories(sess *core.Session) {
+  var threadNum int
+  threadNum = 1
+  sess.Out.Debug("Threads for repository gathering: %d\n", threadNum)
+
+  repos, err := core.GetAllRepositories(sess.GithubClient)
+  if err != nil {
+    sess.Out.Error(" Failed to retrieve all repositories %s\n", err)
+  }
+
+  for _, repo := range repos {
+    sess.Out.Debug(" Retrieved repository: %s\n", *repo.FullName)
+    sess.AddRepository(repo)
+  }
+
+  sess.Stats.IncrementTargets()
+  sess.Out.Info(" Retrieved %d %s", len(repos), core.Pluralize(len(repos), "repository", "repositories"))
+}
+
 func AnalyzeRepositories(sess *core.Session) {
   sess.Stats.Status = core.StatusAnalyzing
   var ch = make(chan *core.GithubRepository, len(sess.Repositories))
@@ -115,7 +134,7 @@ func AnalyzeRepositories(sess *core.Session) {
         }
 
         sess.Out.Debug("[THREAD #%d][%s] Cloning repository...\n", tid, *repo.FullName)
-        clone, path, err := core.CloneRepository(repo.CloneURL, repo.DefaultBranch, *sess.Options.CommitDepth)
+        clone, path, err := core.CloneRepository(repo, *sess.Options.CommitDepth)
         if err != nil {
           if err.Error() != "remote repository is empty" {
             sess.Out.Error("Error cloning repository %s: %s\n", *repo.FullName, err)
@@ -229,6 +248,7 @@ func main() {
 
     GatherTargets(sess)
     GatherRepositories(sess)
+    GatherAllRepositories(sess)
     AnalyzeRepositories(sess)
     sess.Finish()
 
