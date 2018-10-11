@@ -2,7 +2,7 @@ package core
 
 import (
   "context"
-
+  "fmt"
   "github.com/google/go-github/github"
 )
 
@@ -110,4 +110,52 @@ func GetOrganizationMembers(login *string, client *github.Client) ([]*GithubOwne
     opt.Page = resp.NextPage
   }
   return allMembers, nil
+}
+
+func GetAllRepositories(client *github.Client) ([]*GithubRepository, error) {
+  var allRepos []*GithubRepository
+  ctx := context.Background()
+  opt := &github.RepositoryListAllOptions{
+    Since: 0,
+  }
+
+  hard_coded_branch := "master"
+
+  scraped := false
+  since_value := 0
+
+  for scraped != true {
+    repos, _, err := client.Repositories.ListAll(ctx, opt)
+    if err != nil {
+      return allRepos, err
+    }
+    for _, repo := range repos {
+      if !*repo.Fork {
+        r := GithubRepository{
+          Owner:         repo.Owner.Login,
+          ID:            repo.ID,
+          Name:          repo.Name,
+          FullName:      repo.FullName,
+          CloneURL:      repo.CloneURL,
+          URL:           repo.HTMLURL,
+          DefaultBranch: &hard_coded_branch,
+          Description:   repo.Description,
+          Homepage:      repo.Homepage,
+        }
+        allRepos = append(allRepos, &r)
+        if len(allRepos) % 1000 == 0{
+          fmt.Printf("Scraped %d repositories\n", len(allRepos))
+        }
+        since_value = int(*r.ID)
+      }
+    }
+    if len(repos) == 0 {
+      scraped = true
+    }
+    opt = &github.RepositoryListAllOptions{
+      Since: int64(since_value),
+    }
+  }
+
+  return allRepos, nil
 }
