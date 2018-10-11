@@ -205,6 +205,10 @@ func AnalyzeRepositories(sess *core.Session) {
           sess.Stats.IncrementCommits()
           sess.Out.Debug("[THREAD #%d][%s] Done analyzing changes in %s\n", tid, *repo.FullName, commit.Hash)
         }
+        if *sess.Options.Save != "" {
+          save_repo := fmt.Sprintf("results/%s_%s.json", *repo.Owner, *repo.Name)
+          sess.SaveRepoToFile(save_repo, *repo.FullName)
+        }
         sess.Out.Debug("[THREAD #%d][%s] Done analyzing commits\n", tid, *repo.FullName)
         os.RemoveAll(path)
         sess.Out.Debug("[THREAD #%d][%s] Deleted %s\n", tid, *repo.FullName, path)
