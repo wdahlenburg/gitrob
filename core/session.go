@@ -10,7 +10,7 @@ import (
   "runtime"
   "sync"
   "time"
-
+  "strings"
   "github.com/gin-gonic/gin"
   "github.com/google/go-github/github"
   "golang.org/x/oauth2"
@@ -164,6 +164,32 @@ func (s *Session) SaveToFile(location string) error {
     return err
   }
   err = ioutil.WriteFile(location, sessionJson, 0644)
+  if err != nil {
+    return err
+  }
+  return nil
+}
+
+func (s *Session) SaveRepoToFile(location string, FullName string) error {
+  repoFindings := []Finding{}
+
+  for _, f := range s.Findings{
+    temp_fullName := fmt.Sprintf("%s/%s", f.RepositoryOwner, f.RepositoryName)
+    if strings.Compare(temp_fullName, FullName) == 0 {
+      repoFindings = append(repoFindings, *f)
+    }
+  }
+
+  if len(repoFindings) == 0 {
+    return nil
+  }
+
+  findingsJson, err := json.Marshal(repoFindings)
+  if err != nil {
+    return err
+  }
+
+  err = ioutil.WriteFile(location, findingsJson, 0644)
   if err != nil {
     return err
   }
