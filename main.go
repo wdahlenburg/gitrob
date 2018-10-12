@@ -6,8 +6,8 @@ import (
   "strings"
   "sync"
   "time"
-
-  "github.com/michenriksen/gitrob/core"
+  "math"
+  "./core"
 )
 
 var (
@@ -87,22 +87,61 @@ func GatherRepositories(sess *core.Session) {
 }
 
 func GatherAllRepositories(sess *core.Session) {
+  //Need to understand what ch is and use it to create concurrency
+  var ch = make(chan *core.GithubOwner, len(sess.Targets))
+  var wg sync.WaitGroup
   var threadNum int
-  threadNum = 1
-  sess.Out.Debug("Threads for repository gathering: %d\n", threadNum)
 
-  repos, err := core.GetAllRepositories(sess.GithubClient)
+  count, err := core.DetermineRepositoryCount(sess.GithubClient)
   if err != nil {
-    sess.Out.Error(" Failed to retrieve all repositories %s\n", err)
+    sess.Out.Error( "Failed to find upper limit on repositories. Setting threads to 1")
+    threadNum = 1
+    count = math.MaxInt64
+  }else {
+    threadNum = *sess.Options.Threads
   }
 
-  for _, repo := range repos {
-    sess.Out.Debug(" Retrieved repository: %s\n", *repo.FullName)
-    sess.AddRepository(repo)
-  }
+  wg.Add(threadNum)
+  sess.Out.Debug("Threads for repository gathering: %d\n", threadNum)
+  //Divide the max by the number of threads and distribute accordingly
 
-  sess.Stats.IncrementTargets()
-  sess.Out.Info(" Retrieved %d %s", len(repos), core.Pluralize(len(repos), "repository", "repositories"))
+  fmt.Printf("Count is %d\n", count)
+  bounds := int(count) / threadNum
+  fmt.Printf("Bounds are %d\n", bounds)
+  num := 0
+
+  for i := 0; i < threadNum; i++ {
+    go func() {
+      for {
+        //Use this to create concurrency
+        _, ok := <-ch
+        if !ok {
+          wg.Done()
+          return
+        }
+        sess.Out.Debug(" Thread [%d] for repository gathering: [%d:%d]\n", i, i * num, (i*num+bounds))
+        repos, err := core.GetAllRepositories(sess.GithubClient, int64(i * num), int64(i * num + bounds))
+        if err != nil {
+          sess.Out.Error(" Failed to retrieve all repositories %s\n", err)
+        }
+
+        for _, repo := range repos {
+          sess.Out.Debug(" Retrieved repository: %s\n", *repo.FullName)
+          sess.AddRepository(repo)
+        }
+
+        num += bounds
+
+        sess.Stats.IncrementTargets()
+        sess.Out.Info(" Retrieved %d %s", len(repos), core.Pluralize(len(repos), "repository", "repositories"))
+      }
+    }()
+    for _, target := range sess.Targets {
+      ch <- target
+    }
+    close(ch)
+    wg.Wait()
+  }
 }
 
 func AnalyzeRepositories(sess *core.Session) {

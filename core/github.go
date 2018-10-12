@@ -3,6 +3,7 @@ package core
 import (
   "context"
   "fmt"
+  "strconv"
   "github.com/google/go-github/github"
 )
 
@@ -112,17 +113,54 @@ func GetOrganizationMembers(login *string, client *github.Client) ([]*GithubOwne
   return allMembers, nil
 }
 
-func GetAllRepositories(client *github.Client) ([]*GithubRepository, error) {
-  var allRepos []*GithubRepository
+func DetermineRepositoryCount(client *github.Client) (int64, error){
   ctx := context.Background()
   opt := &github.RepositoryListAllOptions{
     Since: 0,
   }
 
+  since_value := 0
+
+  for {
+    repos, _, err := client.Repositories.ListAll(ctx, opt)
+    if err != nil {
+      return -1, err
+    }
+    for _, repo := range repos {
+      if !*repo.Fork {
+        since_value = int(*repo.ID)
+      }
+    }
+    if len(repos) == 0 {
+      return int64(since_value), nil
+    }
+
+    val := fmt.Sprintf("%d0", since_value)
+    // t := 
+    // t = append(strings.Split(t,""), '0')
+    fmt.Printf("%s\n", val)
+    // t_cat := strings.Join(t, "0")
+    since_value, _ = strconv.Atoi(val)
+
+
+    opt = &github.RepositoryListAllOptions{
+      Since: int64(since_value),
+    }
+  }
+  return 0, nil
+}
+
+func GetAllRepositories(client *github.Client, start int64, end int64) ([]*GithubRepository, error) {
+  var allRepos []*GithubRepository
+  ctx := context.Background()
+  opt := &github.RepositoryListAllOptions{
+    Since: start,
+  }
+
   hard_coded_branch := "master"
 
   scraped := false
-  since_value := 0
+  since_value := start
 
   for scraped != true {
     repos, _, err := client.Repositories.ListAll(ctx, opt)
@@ -146,7 +184,10 @@ func GetAllRepositories(client *github.Client) ([]*GithubRepository, error) {
         if len(allRepos) % 1000 == 0{
           fmt.Printf("Scraped %d repositories\n", len(allRepos))
         }
-        since_value = int(*r.ID)
+        since_value = int64(*r.ID)
+        if since_value >= end {
+          return allRepos, nil
+        }
       }
     }
     if len(repos) == 0 {
