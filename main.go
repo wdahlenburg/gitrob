@@ -100,8 +100,7 @@ func GatherReposConcurrent(sess *core.Session, thread_num int, start int64, end 
     }
 
     sess.Stats.IncrementTargets()
-    sess.Out.Info(" Thread [%d] Retrieved %d %s\n", len(repos), thread_num, core.Pluralize(len(repos), "repository", "repositories"))
-    sess.Out.Info(" Thread [%d] Done pulling repositories.\n", thread_num)
+    sess.Out.Info(" Thread [%d] Retrieved %d %s\n", thread_num, len(repos), core.Pluralize(len(repos), "repository", "repositories"))
     wg.Done()
   }()
 }
@@ -115,18 +114,15 @@ func GatherAllRepositories(sess *core.Session) {
     sess.Out.Error( "Failed to find upper limit on repositories. Setting threads to 1")
     threadNum = 1
     count = math.MaxInt64
-  }else {
+  } else {
     threadNum = *sess.Options.Threads
   }
 
-  wg.Add(threadNum)
   sess.Out.Debug("Threads for repository gathering: %d\n", threadNum)
-  //Divide the max by the number of threads and distribute accordingly
 
-  fmt.Printf("Count is %d\n", count)
   bounds := int(count) / threadNum
-  fmt.Printf("Bounds are %d\n", bounds)
 
+  wg.Add(threadNum)
   for i := 0; i < threadNum; i++ {
     end := int64((i +1) * bounds)
     start := int64(end - int64(bounds))
@@ -134,7 +130,7 @@ func GatherAllRepositories(sess *core.Session) {
   }
 
   wg.Wait()
-  fmt.Println("Finished Pulling All Repos")
+  sess.Out.Info("Finished Pulling All Repos\n")
 }
 
 func AnalyzeRepositories(sess *core.Session) {

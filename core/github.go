@@ -2,8 +2,6 @@ package core
 
 import (
   "context"
-  "fmt"
-  "strconv"
   "github.com/google/go-github/github"
 )
 
@@ -135,12 +133,7 @@ func DetermineRepositoryCount(client *github.Client) (int64, error){
       return int64(since_value), nil
     }
 
-    val := fmt.Sprintf("%d0", since_value)
-    // t := 
-    // t = append(strings.Split(t,""), '0')
-    fmt.Printf("%s\n", val)
-    // t_cat := strings.Join(t, "0")
-    since_value, _ = strconv.Atoi(val)
+    since_value *= 2
 
 
     opt = &github.RepositoryListAllOptions{
@@ -160,7 +153,7 @@ func GetAllRepositories(client *github.Client, start int64, end int64) ([]*Githu
   hard_coded_branch := "master"
 
   scraped := false
-  since_value := start
+  sinceValue := start
 
   for scraped != true {
     repos, _, err := client.Repositories.ListAll(ctx, opt)
@@ -181,11 +174,10 @@ func GetAllRepositories(client *github.Client, start int64, end int64) ([]*Githu
           Homepage:      repo.Homepage,
         }
         allRepos = append(allRepos, &r)
-        if len(allRepos) % 1000 == 0{
-          fmt.Printf("Scraped %d repositories\n", len(allRepos))
-        }
-        since_value = int64(*r.ID)
-        if since_value >= end {
+
+        sinceValue = int64(*r.ID)
+
+        if sinceValue >= end {
           return allRepos, nil
         }
       }
@@ -194,7 +186,7 @@ func GetAllRepositories(client *github.Client, start int64, end int64) ([]*Githu
       scraped = true
     }
     opt = &github.RepositoryListAllOptions{
-      Since: int64(since_value),
+      Since: int64(sinceValue),
     }
   }
 
