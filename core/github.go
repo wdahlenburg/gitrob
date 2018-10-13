@@ -117,7 +117,8 @@ func DetermineRepositoryCount(client *github.Client) (int64, error){
     Since: 0,
   }
 
-  since_value := 0
+  sinceValue := 0
+  lastValue := 0
 
   for {
     repos, _, err := client.Repositories.ListAll(ctx, opt)
@@ -126,18 +127,22 @@ func DetermineRepositoryCount(client *github.Client) (int64, error){
     }
     for _, repo := range repos {
       if !*repo.Fork {
-        since_value = int(*repo.ID)
+        sinceValue = int(*repo.ID)
       }
     }
     if len(repos) == 0 {
-      return int64(since_value), nil
+      if sinceValue == lastValue { 
+        return int64(sinceValue), nil
+      }
+      sinceValue = (lastValue + sinceValue) / 2 
+    } else {
+      lastValue = sinceValue
+      sinceValue *= 2
     }
-
-    since_value *= 2
 
 
     opt = &github.RepositoryListAllOptions{
-      Since: int64(since_value),
+      Since: int64(sinceValue),
     }
   }
   return 0, nil
