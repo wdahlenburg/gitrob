@@ -7,7 +7,7 @@ import (
   "sync"
   "time"
   "math"
-  "./core"
+  "github.com/michenriksen/gitrob/core"
 )
 
 var (
@@ -124,7 +124,7 @@ func GatherAllRepositories(sess *core.Session) {
 
   wg.Add(threadNum)
   for i := 0; i < threadNum; i++ {
-    end := int64((i +1) * bounds)
+    end := int64((i + 1) * bounds)
     start := int64(end - int64(bounds))
     GatherReposConcurrent(sess, i, start, end, &wg)
   }
@@ -270,14 +270,18 @@ func main() {
   if sess.Stats.Status == "finished" {
     sess.Out.Important("Loaded session file: %s\n", *sess.Options.Load)
   } else {
-    if len(sess.Options.Logins) == 0 {
+    if len(sess.Options.Logins) == 0 && !*sess.Options.GatherAll {
       sess.Out.Fatal("Please provide at least one GitHub organization or user\n")
-    }
+    } 
 
     GatherTargets(sess)
     GatherRepositories(sess)
-    GatherAllRepositories(sess)
-    // AnalyzeRepositories(sess)
+
+    if *sess.Options.GatherAll {
+      GatherAllRepositories(sess)
+    }
+
+    AnalyzeRepositories(sess)
     sess.Finish()
 
     if *sess.Options.Save != "" {
