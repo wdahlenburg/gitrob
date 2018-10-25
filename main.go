@@ -6,8 +6,8 @@ import (
   "strings"
   "sync"
   "time"
-
-  "github.com/michenriksen/gitrob/core"
+  "math"
+  "./core"
 )
 
 var (
@@ -39,6 +39,65 @@ func GatherTargets(sess *core.Session) {
       }
     }
   }
+}
+
+func GatherTargetsConcurrently(sess *core.Session, threadNum int, start int64, end int64, wg *sync.WaitGroup){
+  go func (){
+    sess.Out.Debug(" Thread [%d] for repository gathering: [%d:%d]\n", threadNum, start, end)
+    target, err := core.GetAllUsers(start, end, sess.GithubClient)
+    if err != nil {
+      sess.Out.Error(" Thread [%d] Failed to retrieve all users %s\n", threadNum, err)
+    }
+
+    for _, t := range target{
+      sess.Out.Debug("%s (ID: %d) type: %s\n", *t.Login, *t.ID, *t.Type)
+      sess.AddTarget(t)
+    }
+
+    wg.Done()
+  }()
+}
+
+func GatherAllTargets(sess *core.Session) {
+  var wg sync.WaitGroup
+  var threadNum int
+  sess.Stats.Status = core.StatusGathering
+  sess.Out.Important("Gathering all targets...\n")
+  count, err := core.GetUserCount(sess.GithubClient)
+  if err != nil {
+    sess.Out.Error("Unable to retrieve all targets: %s\n", err)
+    count = math.MaxInt64
+    threadNum = 1
+  } else {
+    threadNum = *sess.Options.Threads
+  }
+  threadNum = 1
+  sess.Out.Important("Gathering %d targets\n", count)
+
+  bounds := int(count) / threadNum
+
+  wg.Add(threadNum)
+  for i := 0; i < threadNum; i++ {
+    end := int64((i + 1) * bounds)
+    start := int64(end - int64(bounds))
+    GatherTargetsConcurrently(sess, i, start, end, &wg)
+  }
+
+  wg.Wait()
+  sess.Out.Info("Finished Pulling All Users\n")
+  
+  // if *sess.Options.NoExpandOrgs == false && *target.Type == "Organization" {
+  //   sess.Out.Debug("Gathering members of %s (ID: %d)...\n", *target.Login, *target.ID)
+  //   members, err := core.GetOrganizationMembers(target.Login, sess.GithubClient)
+  //   if err != nil {
+  //     sess.Out.Error(" Error retrieving members of %s: %s\n", *target.Login, err)
+  //     continue
+  //   }
+  //   for _, member := range members {
+  //     sess.Out.Debug("Adding organization member %s (ID: %d) to targets\n", *member.Login, *member.ID)
+  //     sess.AddTarget(member)
+  //   }
+  // }
 }
 
 func GatherRepositories(sess *core.Session) {
@@ -227,9 +286,11 @@ func main() {
       sess.Out.Fatal("Please provide at least one GitHub organization or user\n")
     }
 
-    GatherTargets(sess)
-    GatherRepositories(sess)
-    AnalyzeRepositories(sess)
+
+    GatherAllTargets(sess)
+    //GatherTargets(sess)
+    //GatherRepositories(sess)
+    //AnalyzeRepositories(sess)
     sess.Finish()
 
     if *sess.Options.Save != "" {
