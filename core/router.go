@@ -4,8 +4,8 @@ import (
   "context"
   "fmt"
   "net/http"
+  "net/http/httputil"
   "strings"
-
   assetfs "github.com/elazarl/go-bindata-assetfs"
   "github.com/gin-contrib/secure"
   "github.com/gin-contrib/static"
@@ -77,10 +77,25 @@ func NewRouter(s *Session) *gin.Engine {
     c.JSON(200, s.Repositories)
   })
 
-  router.GET("/files/:owner/:repo/:commit/*path", func (c *gin.Context) {
-    c.Set(contextKeyGithubClient, s.GithubClient)
-    fetchFile(c)
-  })
+  if *s.Options.Proxy == "" {
+    router.GET("/files/:owner/:repo/:commit/*path", func (c *gin.Context) {
+      c.Set(contextKeyGithubClient, s.GithubClient)
+      fetchFile(c)
+      })
+  } else {
+    router.GET("/files/:owner/:repo/:commit/*path", func (c *gin.Context) {
+      director := func (req *http.Request) {
+        r := c.Request
+        req = r
+        req.URL.Scheme = "https"
+        req.URL.Host = *s.Options.Proxy
+      }
+      proxy := &httputil.ReverseProxy{Director: director}
+      proxy.ServeHTTP(c.Writer, c.Request)
+      c.Set(contextKeyGithubClient, s.GithubClient)
+      fetchFile(c)
+    })
+  }
 
   return router
 }

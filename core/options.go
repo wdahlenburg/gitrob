@@ -19,6 +19,7 @@ type Options struct {
   Port              *int
   Silent            *bool
   Debug             *bool
+  Proxy             *string
   Logins            []string
 }
 
@@ -37,6 +38,7 @@ func ParseOptions() (Options, error) {
     Port:              flag.Int("port", 9393, "Port to run web server on"),
     Silent:            flag.Bool("silent", false, "Suppress all output except for errors"),
     Debug:             flag.Bool("debug", false, "Print debugging information"),
+    Proxy:             flag.String("proxy", "", "Proxy to retrieve files from. The default is over https. e.g. myproxy-proxy.com:8080"),
   }
 
   flag.Parse()
